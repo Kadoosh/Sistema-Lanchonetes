@@ -38,7 +38,8 @@ class PedidoController {
    */
   criar = asyncHandler(async (req, res) => {
     const io = req.app.get('io');
-    const pedido = await pedidoService.criar(req.body, io);
+    const criadoPorId = req.user.id;
+    const pedido = await pedidoService.criar(req.body, io, criadoPorId);
 
     res.status(201).json({
       success: true,

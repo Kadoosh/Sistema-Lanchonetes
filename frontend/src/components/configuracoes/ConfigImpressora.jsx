@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import printerService from '../../services/printer.service';
+import { FeedbackModal } from '../common/FeedbackModal';
 
 export function ConfigImpressora() {
   const queryClient = useQueryClient();
   const [localConfig, setLocalConfig] = useState(null);
+  const [feedback, setFeedback] = useState({ open: false, type: 'success', title: '', message: '' });
 
   const { data, isLoading } = useQuery({
     queryKey: ['printer-config'],
@@ -28,14 +30,14 @@ export function ConfigImpressora() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['printer-config'] });
       setLocalConfig(null); // Limpar edições locais após salvar
-      alert('Configurações salvas com sucesso!');
+      setFeedback({ open: true, type: 'success', title: 'Sucesso!', message: 'Configurações salvas com sucesso!' });
     },
   });
 
   const testarMutation = useMutation({
     mutationFn: printerService.testarConexao,
     onSuccess: (result) => {
-      alert(result.mensagem || 'Teste realizado!');
+      setFeedback({ open: true, type: 'info', title: 'Teste de Conexão', message: result.mensagem || 'Teste realizado!' });
     },
   });
 
@@ -203,6 +205,15 @@ export function ConfigImpressora() {
           </button>
         </div>
       </div>
+
+      {/* Modal de Feedback */}
+      <FeedbackModal
+        isOpen={feedback.open}
+        onClose={() => setFeedback({ ...feedback, open: false })}
+        type={feedback.type}
+        title={feedback.title}
+        message={feedback.message}
+      />
     </div>
   );
 }

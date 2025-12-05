@@ -87,6 +87,7 @@ import estoqueRoutes from './routes/estoque.routes.js';
 import dashboardRoutes from './routes/dashboard.routes.js';
 import printerRoutes from './routes/printer.routes.js';
 import backupRoutes from './routes/backup.routes.js';
+import uploadRoutes from './routes/upload.routes.js';
 
 // Registrar rotas
 app.use('/api/auth', authRoutes);
@@ -100,6 +101,7 @@ app.use('/api/estoque', estoqueRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/printer', printerRoutes);
 app.use('/api/backup', backupRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // Rota 404
 app.use((req, res) => {

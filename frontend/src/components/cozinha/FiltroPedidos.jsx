@@ -1,6 +1,5 @@
 export function FiltroPedidos({ filtroAtivo, onChangeFiltro }) {
   const filtros = [
-    { valor: 'todos', label: 'Todos', emoji: '📋' },
     { valor: 'preparando', label: 'Preparando', emoji: '🔥' },
     { valor: 'pronto', label: 'Prontos', emoji: '✅' },
   ];

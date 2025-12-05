@@ -52,4 +52,32 @@ api.interceptors.response.use(
   }
 );
 
+// ============ UPLOAD ============
+
+/**
+ * Upload de imagem
+ * @param {File} file - Arquivo de imagem
+ * @returns {Promise<{url: string, filename: string}>}
+ */
+export const uploadImagem = async (file) => {
+  const formData = new FormData();
+  formData.append('imagem', file);
+
+  const response = await api.post('/upload', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+
+  return response.data.data;
+};
+
+/**
+ * Deletar imagem
+ * @param {string} filename - Nome do arquivo
+ */
+export const deletarImagem = async (filename) => {
+  await api.delete(`/upload/${filename}`);
+};
+
 export default api;

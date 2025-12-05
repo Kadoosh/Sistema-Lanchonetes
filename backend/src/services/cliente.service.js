@@ -90,7 +90,7 @@ class ClienteService {
    * @param {Object} dados - Dados do cliente
    */
   async criar(dados) {
-    const { nome, telefone, email, cpf, endereco, observacoes } = dados;
+    const { nome, sobrenome, telefone, email } = dados;
 
     // Verificar se telefone já existe
     if (telefone) {
@@ -103,25 +103,12 @@ class ClienteService {
       }
     }
 
-    // Verificar se CPF já existe
-    if (cpf) {
-      const clienteComCPF = await prisma.cliente.findUnique({
-        where: { cpf },
-      });
-
-      if (clienteComCPF) {
-        throw new AppError('Já existe um cliente com este CPF', 409);
-      }
-    }
-
     const cliente = await prisma.cliente.create({
       data: {
         nome,
+        sobrenome,
         telefone,
         email: email || null,
-        cpf: cpf || null,
-        endereco: endereco || null,
-        observacoes: observacoes || null,
       },
     });
 

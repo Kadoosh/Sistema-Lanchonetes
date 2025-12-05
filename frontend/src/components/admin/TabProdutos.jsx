@@ -4,6 +4,7 @@ import { useAdmin } from '../../hooks/useAdmin';
 import { Modal } from '../common/Modal';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
 import { FeedbackModal } from '../common/FeedbackModal';
+import { uploadImagem } from '../../services/api';
 
 export function TabProdutos() {
   const [busca, setBusca] = useState('');
@@ -95,10 +96,25 @@ export function TabProdutos() {
             {produtos.map((produto) => (
               <tr key={produto.id} className="hover:bg-gray-50">
                 <td className="px-6 py-4">
-                  <div className="font-medium text-gray-900">{produto.nome}</div>
-                  {produto.descricao && (
-                    <div className="text-sm text-gray-500">{produto.descricao}</div>
-                  )}
+                  <div className="flex items-center gap-3">
+                    {produto.imagem ? (
+                      <img
+                        src={produto.imagem}
+                        alt={produto.nome}
+                        className="w-12 h-12 object-cover rounded-lg border border-gray-200"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xl">
+                        🍽️
+                      </div>
+                    )}
+                    <div>
+                      <div className="font-medium text-gray-900">{produto.nome}</div>
+                      {produto.descricao && (
+                        <div className="text-sm text-gray-500 truncate max-w-xs">{produto.descricao}</div>
+                      )}
+                    </div>
+                  </div>
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-500">
                   {produto.categoria?.nome || '-'}
@@ -191,8 +207,13 @@ function ProdutoFormModal({ isOpen, onClose, produto, categorias, onSave }) {
     preco: '',
     categoriaId: '',
     disponivel: true,
+    imagem: '',
   });
+  const [previewImagem, setPreviewImagem] = useState('');
+  const [arquivoImagem, setArquivoImagem] = useState(null);
+  const [uploading, setUploading] = useState(false);
 
+  // Resetar formulário quando modal abre/fecha ou produto muda
   useState(() => {
     if (produto) {
       setForm({
@@ -201,7 +222,10 @@ function ProdutoFormModal({ isOpen, onClose, produto, categorias, onSave }) {
         preco: produto.preco || '',
         categoriaId: produto.categoriaId || '',
         disponivel: produto.disponivel ?? true,
+        imagem: produto.imagem || '',
       });
+      setPreviewImagem(produto.imagem || '');
+      setArquivoImagem(null);
     } else {
       setForm({
         nome: '',
@@ -209,16 +233,66 @@ function ProdutoFormModal({ isOpen, onClose, produto, categorias, onSave }) {
         preco: '',
         categoriaId: '',
         disponivel: true,
+        imagem: '',
       });
+      setPreviewImagem('');
+      setArquivoImagem(null);
     }
   }, [produto]);
 
-  const handleSubmit = (e) => {
+  // Selecionar arquivo de imagem
+  const handleImagemChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Validar tamanho (máximo 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Imagem muito grande. Máximo 5MB.');
+        return;
+      }
+      
+      // Guardar arquivo para upload
+      setArquivoImagem(file);
+      
+      // Criar preview local
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreviewImagem(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Limpar imagem
+  const handleRemoverImagem = () => {
+    setForm({ ...form, imagem: '' });
+    setPreviewImagem('');
+    setArquivoImagem(null);
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    let imagemUrl = form.imagem;
+    
+    // Se tem arquivo novo, fazer upload
+    if (arquivoImagem) {
+      try {
+        setUploading(true);
+        const resultado = await uploadImagem(arquivoImagem);
+        imagemUrl = resultado.url;
+      } catch (error) {
+        alert('Erro ao fazer upload da imagem: ' + (error.response?.data?.message || error.message));
+        setUploading(false);
+        return;
+      }
+      setUploading(false);
+    }
+    
     onSave({
       ...form,
       preco: parseFloat(form.preco),
       categoriaId: form.categoriaId ? parseInt(form.categoriaId) : null,
+      imagem: imagemUrl || null,
     });
   };
 
@@ -286,6 +360,41 @@ function ProdutoFormModal({ isOpen, onClose, produto, categorias, onSave }) {
           </select>
         </div>
 
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Foto do Produto
+          </label>
+          <div className="space-y-2">
+            {previewImagem ? (
+              <div className="relative inline-block">
+                <img
+                  src={previewImagem}
+                  alt="Preview"
+                  className="w-32 h-32 object-cover rounded-lg border border-gray-300"
+                />
+                <button
+                  type="button"
+                  onClick={handleRemoverImagem}
+                  className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 text-sm font-bold"
+                >
+                  ×
+                </button>
+              </div>
+            ) : (
+              <div className="w-32 h-32 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center text-gray-400">
+                <span className="text-3xl">📷</span>
+              </div>
+            )}
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleImagemChange}
+              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100"
+            />
+            <p className="text-xs text-gray-500">PNG, JPG, GIF ou WebP. Máximo 5MB.</p>
+          </div>
+        </div>
+
         <div className="flex items-center gap-2">
           <input
             type="checkbox"
@@ -303,15 +412,17 @@ function ProdutoFormModal({ isOpen, onClose, produto, categorias, onSave }) {
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+            disabled={uploading}
+            className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50"
           >
             Cancelar
           </button>
           <button
             type="submit"
-            className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+            disabled={uploading}
+            className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
           >
-            Salvar
+            {uploading ? 'Enviando imagem...' : 'Salvar'}
           </button>
         </div>
       </form>

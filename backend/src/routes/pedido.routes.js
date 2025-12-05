@@ -13,24 +13,21 @@ const router = Router();
 
 const criarPedidoValidation = [
   body('clienteId')
-    .optional()
+    .optional({ nullable: true })
     .isInt({ min: 1 })
     .withMessage('ID do cliente inválido')
     .toInt(),
   body('mesaId')
-    .optional()
+    .notEmpty()
+    .withMessage('Mesa é obrigatória')
     .isInt({ min: 1 })
     .withMessage('ID da mesa inválido')
     .toInt(),
-  body('tipo')
-    .optional()
-    .isIn(['local', 'delivery', 'balcao'])
-    .withMessage('Tipo deve ser local, delivery ou balcao'),
-  body('observacoes')
-    .optional()
+  body('observacao')
+    .optional({ nullable: true })
     .isString()
     .isLength({ max: 500 })
-    .withMessage('Observações devem ter no máximo 500 caracteres')
+    .withMessage('Observação deve ter no máximo 500 caracteres')
     .trim(),
   body('itens')
     .isArray({ min: 1 })
@@ -43,11 +40,11 @@ const criarPedidoValidation = [
     .isInt({ min: 1, max: 100 })
     .withMessage('Quantidade deve ser entre 1 e 100')
     .toInt(),
-  body('itens.*.observacoes')
-    .optional()
+  body('itens.*.observacao')
+    .optional({ nullable: true })
     .isString()
     .isLength({ max: 200 })
-    .withMessage('Observações do item devem ter no máximo 200 caracteres')
+    .withMessage('Observação do item deve ter no máximo 200 caracteres')
     .trim(),
 ];
 
@@ -69,8 +66,16 @@ const cancelarPedidoValidation = [
 const listarPedidosValidation = [
   query('status')
     .optional()
-    .isIn(['aguardando', 'preparando', 'pronto', 'entregue', 'cancelado'])
-    .withMessage('Status inválido'),
+    .custom((value) => {
+      // Aceita um status único ou múltiplos separados por vírgula
+      const statusValidos = ['aguardando', 'preparando', 'pronto', 'entregue', 'cancelado', 'pago'];
+      const statusList = value.split(',').map(s => s.trim());
+      const todosValidos = statusList.every(s => statusValidos.includes(s));
+      if (!todosValidos) {
+        throw new Error('Status inválido');
+      }
+      return true;
+    }),
   query('mesaId')
     .optional()
     .isInt({ min: 1 })

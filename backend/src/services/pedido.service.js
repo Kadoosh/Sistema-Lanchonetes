@@ -15,7 +15,13 @@ class PedidoService {
     const where = {};
 
     if (status) {
-      where.status = status;
+      // Suporte a múltiplos status separados por vírgula
+      if (status.includes(',')) {
+        const statusList = status.split(',').map(s => s.trim());
+        where.status = { in: statusList };
+      } else {
+        where.status = status;
+      }
     }
 
     if (mesaId) {
@@ -40,6 +46,7 @@ class PedidoService {
           select: {
             id: true,
             nome: true,
+            sobrenome: true,
             telefone: true,
           },
         },
@@ -47,6 +54,12 @@ class PedidoService {
           select: {
             id: true,
             numero: true,
+          },
+        },
+        criadoPor: {
+          select: {
+            id: true,
+            nome: true,
           },
         },
         itens: {
@@ -79,6 +92,12 @@ class PedidoService {
       include: {
         cliente: true,
         mesa: true,
+        criadoPor: {
+          select: {
+            id: true,
+            nome: true,
+          },
+        },
         itens: {
           include: {
             produto: {
@@ -102,9 +121,10 @@ class PedidoService {
    * Cria novo pedido
    * @param {Object} dados - Dados do pedido
    * @param {Object} io - Instância do Socket.IO
+   * @param {number} criadoPorId - ID do usuário que está criando o pedido
    */
-  async criar(dados, io) {
-    const { clienteId, mesaId, itens, observacoes, tipo } = dados;
+  async criar(dados, io, criadoPorId) {
+    const { clienteId, mesaId, itens, observacao } = dados;
 
     // Validar itens
     if (!itens || itens.length === 0) {
@@ -122,7 +142,7 @@ class PedidoService {
       }
     }
 
-    // Verificar se mesa existe e está disponível
+    // Verificar se mesa existe (mesa ocupada pode receber mais pedidos)
     if (mesaId) {
       const mesa = await prisma.mesa.findUnique({
         where: { id: mesaId },
@@ -130,10 +150,6 @@ class PedidoService {
 
       if (!mesa) {
         throw new AppError('Mesa não encontrada', 404);
-      }
-
-      if (mesa.status === 'ocupada' && !mesa.pedidoAtualId) {
-        throw new AppError('Mesa já está ocupada', 400);
       }
     }
 
@@ -167,19 +183,19 @@ class PedidoService {
       },
     });
 
-    const numeroComanda = pedidosHoje + 1;
+    const numero = String(pedidosHoje + 1).padStart(3, '0');
 
     // Criar pedido com itens em uma transação
     const pedido = await prisma.$transaction(async (tx) => {
       const novoPedido = await tx.pedido.create({
         data: {
-          numeroComanda,
+          numero,
+          mesaId,
           clienteId: clienteId || null,
-          mesaId: mesaId || null,
-          tipo: tipo || 'local',
-          status: 'aguardando',
+          criadoPorId,
+          status: 'preparando',
           total,
-          observacoes: observacoes || null,
+          observacao: observacao || null,
         },
       });
 
@@ -189,13 +205,16 @@ class PedidoService {
           where: { id: item.produtoId },
         });
 
+        const subtotalItem = produto.preco * item.quantidade;
+
         await tx.itemPedido.create({
           data: {
             pedidoId: novoPedido.id,
             produtoId: item.produtoId,
             quantidade: item.quantidade,
             precoUnitario: produto.preco,
-            observacoes: item.observacoes || null,
+            subtotal: subtotalItem,
+            observacao: item.observacao || null,
           },
         });
       }
@@ -206,7 +225,6 @@ class PedidoService {
           where: { id: mesaId },
           data: {
             status: 'ocupada',
-            pedidoAtualId: novoPedido.id,
           },
         });
       }
@@ -217,10 +235,40 @@ class PedidoService {
     // Buscar pedido completo
     const pedidoCompleto = await this.buscarPorId(pedido.id);
 
-    // Emitir evento Socket.IO
+    // Emitir evento Socket.IO (versão simplificada sem referências circulares)
     if (io) {
-      emitToAll(io, SOCKET_EVENTS.NOVO_PEDIDO, pedidoCompleto);
-      emitToNamespace(io, '/cozinha', SOCKET_EVENTS.NOVO_PEDIDO, pedidoCompleto);
+      const pedidoParaSocket = {
+        id: pedidoCompleto.id,
+        numero: pedidoCompleto.numero,
+        status: pedidoCompleto.status,
+        total: pedidoCompleto.total,
+        observacao: pedidoCompleto.observacao,
+        criadoEm: pedidoCompleto.criadoEm,
+        mesa: pedidoCompleto.mesa ? {
+          id: pedidoCompleto.mesa.id,
+          numero: pedidoCompleto.mesa.numero,
+        } : null,
+        cliente: pedidoCompleto.cliente ? {
+          id: pedidoCompleto.cliente.id,
+          nome: pedidoCompleto.cliente.nome,
+          sobrenome: pedidoCompleto.cliente.sobrenome,
+        } : null,
+        itens: pedidoCompleto.itens?.map(item => ({
+          id: item.id,
+          quantidade: item.quantidade,
+          precoUnitario: item.precoUnitario,
+          subtotal: item.subtotal,
+          observacao: item.observacao,
+          produto: item.produto ? {
+            id: item.produto.id,
+            nome: item.produto.nome,
+            preco: item.produto.preco,
+          } : null,
+        })) || [],
+      };
+      
+      emitToAll(SOCKET_EVENTS.NOVO_PEDIDO, pedidoParaSocket);
+      emitToNamespace('/cozinha', SOCKET_EVENTS.NOVO_PEDIDO, pedidoParaSocket);
     }
 
     return pedidoCompleto;
@@ -272,19 +320,19 @@ class PedidoService {
 
     // Emitir eventos Socket.IO
     if (io) {
-      emitToAll(io, SOCKET_EVENTS.PEDIDO_ATUALIZADO, pedidoAtualizado);
+      emitToAll(SOCKET_EVENTS.PEDIDO_ATUALIZADO, pedidoAtualizado);
 
       if (novoStatus === 'pronto') {
-        emitToAll(io, SOCKET_EVENTS.PEDIDO_PRONTO, pedidoAtualizado);
-        emitToNamespace(io, '/atendimento', SOCKET_EVENTS.PEDIDO_PRONTO, pedidoAtualizado);
+        emitToAll(SOCKET_EVENTS.PEDIDO_PRONTO, pedidoAtualizado);
+        emitToNamespace('/atendimento', SOCKET_EVENTS.PEDIDO_PRONTO, pedidoAtualizado);
       }
 
       if (novoStatus === 'cancelado') {
-        emitToAll(io, SOCKET_EVENTS.PEDIDO_CANCELADO, pedidoAtualizado);
+        emitToAll(SOCKET_EVENTS.PEDIDO_CANCELADO, pedidoAtualizado);
       }
 
       if (novoStatus === 'entregue') {
-        emitToAll(io, SOCKET_EVENTS.PEDIDO_ENTREGUE, pedidoAtualizado);
+        emitToAll(SOCKET_EVENTS.PEDIDO_ENTREGUE, pedidoAtualizado);
       }
     }
 
@@ -308,7 +356,7 @@ class PedidoService {
       where: { id: parseInt(id) },
       data: {
         status: 'cancelado',
-        observacoes: motivo ? `CANCELADO: ${motivo}` : 'Cancelado',
+        motivoCancelamento: motivo || 'Cancelado',
       },
       include: {
         cliente: true,
@@ -327,14 +375,13 @@ class PedidoService {
         where: { id: pedido.mesaId },
         data: {
           status: 'livre',
-          pedidoAtualId: null,
         },
       });
     }
 
     // Emitir evento Socket.IO
     if (io) {
-      emitToAll(io, SOCKET_EVENTS.PEDIDO_CANCELADO, pedidoCancelado);
+      emitToAll(SOCKET_EVENTS.PEDIDO_CANCELADO, pedidoCancelado);
     }
 
     return pedidoCancelado;
@@ -372,18 +419,17 @@ class PedidoService {
         where: { id: pedido.mesaId },
         data: {
           status: 'livre',
-          pedidoAtualId: null,
         },
       });
 
       if (io) {
-        emitToAll(io, 'mesa_liberada', { mesaId: pedido.mesaId });
+        emitToAll('mesa_liberada', { mesaId: pedido.mesaId });
       }
     }
 
     // Emitir evento Socket.IO
     if (io) {
-      emitToAll(io, SOCKET_EVENTS.PEDIDO_ENTREGUE, pedidoFinalizado);
+      emitToAll(SOCKET_EVENTS.PEDIDO_ENTREGUE, pedidoFinalizado);
     }
 
     return pedidoFinalizado;

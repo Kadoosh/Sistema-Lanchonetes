@@ -1,5 +1,6 @@
 import { validationResult } from 'express-validator';
 import { AppError } from './errorHandler.js';
+import logger from '../utils/logger.js';
 
 /**
  * Middleware de validação
@@ -15,7 +16,18 @@ export const validate = (req, res, next) => {
       value: err.value,
     }));
 
-    throw new AppError('Erro de validação', 400, formattedErrors);
+    // Log detalhado dos erros de validação
+    logger.warn('Erro de validação', {
+      url: req.url,
+      method: req.method,
+      body: req.body,
+      errors: formattedErrors,
+    });
+
+    // Criar mensagem amigável
+    const errorMessages = formattedErrors.map(e => `${e.field}: ${e.message}`).join(', ');
+    
+    throw new AppError(`Erro de validação: ${errorMessages}`, 400, formattedErrors);
   }
 
   next();

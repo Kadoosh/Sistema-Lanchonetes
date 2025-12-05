@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { Modal } from '../common/Modal';
 import { PedidoResumo } from './PedidoResumo';
 import { usePedidosPorMesa, useMarcarComoPago } from '../../hooks/usePedidosPorMesa';
+import { FeedbackModal } from '../common/FeedbackModal';
 
 export function ContaModal({ isOpen, onClose, mesa }) {
   const [desconto, setDesconto] = useState(0);
+  const [feedback, setFeedback] = useState({ open: false, type: 'success', title: '', message: '' });
   const { data: pedidosData, isLoading } = usePedidosPorMesa(mesa?.id, isOpen);
   const marcarComoPago = useMarcarComoPago();
 
@@ -33,10 +35,10 @@ export function ContaModal({ isOpen, onClose, mesa }) {
         await marcarComoPago.mutateAsync(pedido.id);
       }
 
-      alert('✅ Pagamento registrado com sucesso!');
-      onClose();
+      setFeedback({ open: true, type: 'success', title: 'Sucesso!', message: 'Pagamento registrado com sucesso! ✅' });
+      setTimeout(() => onClose(), 1500);
     } catch (error) {
-      alert('Erro ao registrar pagamento: ' + (error.response?.data?.message || error.message));
+      setFeedback({ open: true, type: 'error', title: 'Erro!', message: error.response?.data?.message || error.message });
     }
   };
 
@@ -136,6 +138,15 @@ export function ContaModal({ isOpen, onClose, mesa }) {
               </button>
             </div>
           )}
+
+          {/* Modal de Feedback */}
+          <FeedbackModal
+            isOpen={feedback.open}
+            onClose={() => setFeedback({ ...feedback, open: false })}
+            type={feedback.type}
+            title={feedback.title}
+            message={feedback.message}
+          />
         </div>
       )}
     </Modal>

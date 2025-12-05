@@ -9,7 +9,7 @@ import { playNotificationSound, playSuccessSound } from '../utils/sounds';
 
 export function Cozinha() {
   const { user } = useAuth();
-  const [filtro, setFiltro] = useState('todos');
+  const [filtro, setFiltro] = useState('preparando');
   const [feedback, setFeedback] = useState({ open: false, type: 'success', title: '', message: '' });
 
   // Query de pedidos

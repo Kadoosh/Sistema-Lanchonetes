@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import backupService from '../../services/backup.service';
+import { FeedbackModal } from '../common/FeedbackModal';
 
 export function ConfigBackup() {
   const queryClient = useQueryClient();
   const [localConfig, setLocalConfig] = useState(null);
+  const [feedback, setFeedback] = useState({ open: false, type: 'success', title: '', message: '' });
 
   // Queries
   const { data: configData, isLoading: loadingConfig } = useQuery({
@@ -31,7 +33,7 @@ export function ConfigBackup() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['backup-config'] });
       setLocalConfig(null); // Limpar edições locais após salvar
-      alert('Configurações salvas!');
+      setFeedback({ open: true, type: 'success', title: 'Sucesso!', message: 'Configurações salvas!' });
     },
   });
 
@@ -39,10 +41,10 @@ export function ConfigBackup() {
     mutationFn: backupService.criarBackup,
     onSuccess: () => {
       refetchBackups();
-      alert('Backup criado com sucesso!');
+      setFeedback({ open: true, type: 'success', title: 'Sucesso!', message: 'Backup criado com sucesso!' });
     },
     onError: (error) => {
-      alert('Erro ao criar backup: ' + (error.response?.data?.message || error.message));
+      setFeedback({ open: true, type: 'error', title: 'Erro!', message: error.response?.data?.message || error.message });
     },
   });
 
@@ -57,7 +59,7 @@ export function ConfigBackup() {
     mutationFn: backupService.limparBackups,
     onSuccess: (result) => {
       refetchBackups();
-      alert(result.mensagem);
+      setFeedback({ open: true, type: 'success', title: 'Sucesso!', message: result.mensagem });
     },
   });
 
@@ -253,6 +255,15 @@ export function ConfigBackup() {
           </div>
         )}
       </div>
+
+      {/* Modal de Feedback */}
+      <FeedbackModal
+        isOpen={feedback.open}
+        onClose={() => setFeedback({ ...feedback, open: false })}
+        type={feedback.type}
+        title={feedback.title}
+        message={feedback.message}
+      />
     </div>
   );
 }

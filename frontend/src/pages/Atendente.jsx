@@ -104,17 +104,18 @@ export function Atendente() {
     try {
       const pedidoData = {
         mesaId: mesaSelecionada,
-        clienteId: clienteSelecionado?.id || null,
         itens: carrinho.map((item) => ({
           produtoId: item.produtoId,
           quantidade: item.quantidade,
-          precoUnitario: item.preco,
-          observacao: item.observacao || null,
+          ...(item.observacao && { observacao: item.observacao }),
         })),
-        observacao: clienteSelecionado
-          ? `Cliente: ${clienteSelecionado.nome} ${clienteSelecionado.sobrenome}`
-          : null,
       };
+
+      // Adicionar clienteId apenas se houver cliente
+      if (clienteSelecionado?.id) {
+        pedidoData.clienteId = clienteSelecionado.id;
+        pedidoData.observacao = `Cliente: ${clienteSelecionado.nome} ${clienteSelecionado.sobrenome}`;
+      }
 
       await criarPedido.mutateAsync(pedidoData);
 

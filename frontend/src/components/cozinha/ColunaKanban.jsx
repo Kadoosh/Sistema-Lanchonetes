@@ -7,6 +7,9 @@ export function ColunaKanban({ titulo, pedidos, onMarcarPronto, cor = 'primary' 
     return 'bg-primary-600';
   };
 
+  // Se mais de 2 pedidos, usar 2 colunas
+  const usarDuasColunas = pedidos.length > 2;
+
   return (
     <div className="flex flex-col h-full bg-gray-50 rounded-lg shadow-lg">
       {/* Header */}
@@ -18,20 +21,22 @@ export function ColunaKanban({ titulo, pedidos, onMarcarPronto, cor = 'primary' 
       </div>
 
       {/* Conteúdo */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4">
         {pedidos.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-400">
             <span className="text-6xl mb-2">📭</span>
             <p>Nenhum pedido</p>
           </div>
         ) : (
-          pedidos.map((pedido) => (
-            <PedidoCard
-              key={pedido.id}
-              pedido={pedido}
-              onMarcarPronto={onMarcarPronto}
-            />
-          ))
+          <div className={`grid gap-3 ${usarDuasColunas ? 'grid-cols-2' : 'grid-cols-1'}`}>
+            {pedidos.map((pedido) => (
+              <PedidoCard
+                key={pedido.id}
+                pedido={pedido}
+                onMarcarPronto={onMarcarPronto}
+              />
+            ))}
+          </div>
         )}
       </div>
     </div>
